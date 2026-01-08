@@ -3,8 +3,6 @@ import 'package:flutter/material.dart';
 import '../../services/product_service.dart';
 import '../../models/product.dart';
 import '../../widgets/apple_card.dart';
-
-// --- IMPORT CART SAJA (Wishlist & History dihapus dari sini) ---
 import '../cart/cart_view.dart';
 
 class HomeView extends StatefulWidget {
@@ -16,34 +14,66 @@ class HomeView extends StatefulWidget {
 
 class _HomeViewState extends State<HomeView> {
   final ProductService _productService = ProductService();
-  List<Product> _products = [];
+
+  // Data State
+  List<Product> _allProducts = []; // Menyimpan SEMUA barang asli
+  List<Product> _displayedProducts =
+      []; // Menyimpan barang yang SEDANG DITAMPILKAN (hasil filter)
+  List<String> _categories = []; // Menyimpan daftar kategori
+
+  String _selectedCategory = "All"; // Kategori yang sedang dipilih
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _fetchProducts();
+    _fetchAllData();
   }
 
-  Future<void> _fetchProducts() async {
-    final data = await _productService.getProducts();
+  // Ambil Produk & Kategori sekaligus
+  Future<void> _fetchAllData() async {
+    setState(() => _isLoading = true);
+
+    // 1. Ambil Produk
+    final products = await _productService.getProducts();
+    // 2. Ambil Kategori
+    final categories = await _productService.getCategories();
+
     if (mounted) {
       setState(() {
-        _products = data;
+        _allProducts = products;
+        _displayedProducts = products; // Awalnya tampilkan semua
+        _categories = categories;
         _isLoading = false;
       });
     }
   }
 
+  // Logic Filter saat Kategori diklik
+  void _onCategorySelected(String category) {
+    setState(() {
+      _selectedCategory = category;
+
+      if (category == "All") {
+        _displayedProducts = _allProducts;
+      } else {
+        // Filter produk berdasarkan kategori yang cocok
+        _displayedProducts = _allProducts
+            .where((item) => item.category == category)
+            .toList();
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return RefreshIndicator(
-      onRefresh: _fetchProducts,
+      onRefresh: _fetchAllData,
       color: const Color(0xFF222222),
       child: Scaffold(
         backgroundColor: const Color(0xFFFAFAFA),
 
-        // --- HEADER KEMBALI SEPERTI AWAL ---
+        // --- HEADER ---
         appBar: AppBar(
           backgroundColor: const Color(0xFF222222),
           elevation: 0,
@@ -51,7 +81,6 @@ class _HomeViewState extends State<HomeView> {
           titleSpacing: 16,
           title: Row(
             children: [
-              // 1. Logo Teks
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -75,8 +104,6 @@ class _HomeViewState extends State<HomeView> {
                 ],
               ),
               const SizedBox(width: 16),
-
-              // 2. Search Bar
               Expanded(
                 child: Container(
                   height: 40,
@@ -99,10 +126,7 @@ class _HomeViewState extends State<HomeView> {
                   ),
                 ),
               ),
-
               const SizedBox(width: 12),
-
-              // 3. ICON KERANJANG (Berfungsi ke CartView)
               GestureDetector(
                 onTap: () {
                   Navigator.push(
@@ -116,10 +140,7 @@ class _HomeViewState extends State<HomeView> {
                   size: 26,
                 ),
               ),
-
               const SizedBox(width: 12),
-
-              // 4. ICON NOTIFIKASI (Lonceng Saja)
               const Icon(
                 Icons.notifications_none,
                 color: Colors.white,
@@ -129,19 +150,82 @@ class _HomeViewState extends State<HomeView> {
           ),
         ),
 
-        // --- BODY TETAP SAMA ---
+        // --- BODY ---
         body: _isLoading
             ? const Center(
                 child: CircularProgressIndicator(color: Color(0xFF222222)),
               )
             : CustomScrollView(
                 slivers: [
+                  // 1. Banner Promo
                   SliverToBoxAdapter(child: _buildPromoCarousel()),
+
+                  // 2. Judul Kategori
+                  const SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      child: Text(
+                        "Categories",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF222222),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // 3. List Kategori (Horizontal) - BARU DITAMBAHKAN
+                  SliverToBoxAdapter(
+                    child: SizedBox(
+                      height: 50,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        itemCount: _categories.length,
+                        itemBuilder: (context, index) {
+                          final cat = _categories[index];
+                          final isSelected = cat == _selectedCategory;
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 10),
+                            child: ChoiceChip(
+                              label: Text(
+                                cat.toUpperCase(), // Biar huruf besar semua
+                                style: TextStyle(
+                                  color: isSelected
+                                      ? Colors.white
+                                      : Colors.black,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              selected: isSelected,
+                              selectedColor: const Color(0xFF222222),
+                              backgroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                                side: BorderSide(
+                                  color: isSelected
+                                      ? Colors.transparent
+                                      : Colors.grey.shade300,
+                                ),
+                              ),
+                              onSelected: (bool selected) {
+                                if (selected) _onCategorySelected(cat);
+                              },
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+
+                  // 4. Judul Fresh Drops
                   const SliverToBoxAdapter(
                     child: Padding(
                       padding: EdgeInsets.symmetric(
                         horizontal: 16,
-                        vertical: 8,
+                        vertical: 16,
                       ),
                       child: Text(
                         "Fresh Drops",
@@ -153,28 +237,52 @@ class _HomeViewState extends State<HomeView> {
                       ),
                     ),
                   ),
-                  SliverPadding(
-                    padding: const EdgeInsets.all(16),
-                    sliver: SliverGrid(
-                      delegate: SliverChildBuilderDelegate((context, index) {
-                        return AppleProductCard(product: _products[index]);
-                      }, childCount: _products.length),
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            childAspectRatio: 0.65,
-                            crossAxisSpacing: 16,
-                            mainAxisSpacing: 16,
+
+                  // 5. Grid Produk (Menampilkan _displayedProducts)
+                  _displayedProducts.isEmpty
+                      ? const SliverToBoxAdapter(
+                          child: Padding(
+                            padding: EdgeInsets.all(50.0),
+                            child: Center(
+                              child: Text(
+                                "Barang tidak ditemukan di kategori ini",
+                              ),
+                            ),
                           ),
-                    ),
-                  ),
+                        )
+                      : SliverPadding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          sliver: SliverGrid(
+                            delegate: SliverChildBuilderDelegate((
+                              context,
+                              index,
+                            ) {
+                              return AppleProductCard(
+                                product: _displayedProducts[index],
+                              );
+                            }, childCount: _displayedProducts.length),
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 2,
+                                  childAspectRatio: 0.65,
+                                  crossAxisSpacing: 16,
+                                  mainAxisSpacing: 16,
+                                ),
+                          ),
+                        ),
+
+                  // Spacer bawah biar ga mentok
+                  const SliverToBoxAdapter(child: SizedBox(height: 100)),
                 ],
               ),
       ),
     );
   }
 
-  // --- CAROUSEL TIDAK BERUBAH ---
+  // --- CAROUSEL WIDGET (TIDAK BERUBAH) ---
   Widget _buildPromoCarousel() {
     return Container(
       height: 180,

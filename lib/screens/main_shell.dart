@@ -65,7 +65,7 @@ class _MainShellState extends State<MainShell> {
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.favorite_border),
-              label: "Saved",
+              label: "Wishlist",
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.add_circle_outline, size: 28),
